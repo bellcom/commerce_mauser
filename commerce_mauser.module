@@ -1,0 +1,296 @@
+<?php
+/**
+ * This module allows the user to create a product that repeats itself
+ * each day for at specified period.
+ *
+ * @author Thomas Thune Hansen <tth@bellcom.dk>
+ * @copyright bellcom open source aps
+ */
+
+/*
+ * Implements hook_menu()
+ */
+
+function commerce_mauser_menu(){
+  $items = array();
+  
+  $items['admin/commerce/products/add_repeater'] = array(
+    'title' => t('Add repeated product'),
+    'page callback' => 'drupal_get_form',
+    'access arguments' => array('Create commerce products entities'),
+    'page arguments' => array('_commerce_mauser_add_product_form'),
+    'access callback' => 'commerce_product_access',
+    'access arguments' => array('create', commerce_product_new($type)),
+  );
+
+  $items['admin/commerce/products/manage_repeater'] = array(
+    'title' => t('Manage repeated products'),
+    'page callback' => 'commerce_mauser_manage_repeater_view',
+    'access callback' => 'commerce_product_access',
+    'access arguments' => array('create', commerce_product_new($type)),
+    'type' => MENU_LOCAL_TASK,
+  );
+  
+  $items['admin/commerce/products/delete_repeater/%'] = array(
+    'title' => t('Delete repeated products'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('commerce_mauser_delete_repeater_confirm', 4),
+    'access callback' => 'commerce_product_access',
+    'access arguments' => array('create', commerce_product_new($type)),
+  );
+
+  $items['commerce_mauser/mauser_id'] = array(
+      'title' => t('View the form'),
+      'callback' => 'commerce_mauser_get_mauser_id_form',
+      'access arguments' => TRUE
+    );
+
+  return $items;
+}
+
+function commerce_mauser_manage_repeater_view(){
+  global $user;
+
+  $mauser_ids = _commerce_mauser_get_mauser_ids();
+  $header = array(t('Title'), t('Options')); 
+  $rows = array();
+
+  foreach($mauser_ids as $key => $value) {
+    $mauser_uid = _commerce_mauser_get_product_user($key);
+    if((int)$user->uid !== 1 || !in_array('Offer admin', $user->roles)){
+      if($mauser_uid !== $user->uid){
+        continue;
+      }
+    }
+    $rows[] = array($value, '<a href="delete_repeater/'.$key.'">'.t('Delete').'</a>');
+
+  }
+  return theme('table', array('header' => $header, 'rows' => $rows)) . '<a href="/admin/commerce/products/add_repeater">' . t('Create new repeated product') . '</a>';
+}
+
+function commerce_mauser_delete_repeater_confirm($form, &$form_state, $mauser_id) {
+  $form['mauser_id'] = array(
+    '#type' => 'value', 
+    '#value' => $mauser_id);
+
+  return confirm_form($form, 
+    t('Are you sure you want to delete %title?', array('%title' => $mauser_id)),
+    'admin/commerce/products/manage_repeater',
+    t('This action cannot be undone.'),
+    t('Delete'),
+    t('Cancel'));
+}
+
+function commerce_mauser_delete_repeater_confirm_submit($form, &$form_state){
+  if($form_state['values']['confirm']) {
+
+    $product_ids = _commerce_mauser_get_repeated_product_list(array($form_state['values']['mauser_id']));
+    
+    foreach($product_ids as $product_id ){
+      commerce_product_delete($product_id['product_id']);
+    }
+
+    drupal_set_message(t('%title has been deleted', array('%title' => $form_state['values']['mauser_id'])));
+
+    $form_state['redirect'] = '/offer-publisher';  
+  }
+}
+
+function commerce_mauser_field_attach_submit($entity_type, $entity, $form, &$form_state){
+  if($entity->type == 'offer') {
+    $values = drupal_array_get_nested_value($form_state['values'], $form['#parents']);
+
+    if (!empty($values['field_gentaget_produkt'][LANGUAGE_NONE][0]['mauser_id'])) {
+      $mauser_ids = array();
+
+      foreach($values['field_gentaget_produkt'][LANGUAGE_NONE] as $referenced_mauser_id){
+        $mauser_ids[] = $referenced_mauser_id['mauser_id'];
+      }
+
+      // Get a list of all product_ids of references mauser id
+      $product_ids = _commerce_mauser_get_repeated_product_list($mauser_ids);
+
+      // attach to the entity  
+      $entity->field_reference[LANGUAGE_NONE] = $product_ids;
+    }
+    else 
+    {
+      // Clean up in referenced products. We dont want to leave any products hanging,
+      // only reference the chosen products
+      $entity->field_reference = $values['field_reference'];
+    }
+  }
+}
+
+/**
+ * form for adding repeated product
+ */
+function _commerce_mauser_add_product_form($form, &$form_state){
+  drupal_add_library('system','ui.datepicker');
+  drupal_add_js('
+    jQuery(document).ready(function(){jQuery( "#edit-date-from" ).datepicker({autoSize: true, dateFormat: "dd-mm-yy"}).attr("readonly", true);});
+    jQuery(document).ready(function(){jQuery( "#edit-date-to" ).datepicker({autoSize: true, dateFormat: "dd-mm-yy"}).attr("readonly", true);});',
+    'inline'); 
+
+  $form['title'] = array(
+    '#title' => t('Product title'),
+    '#type' => 'textfield',
+    '#description' => t('ex. "Hindsgavl"'),
+    '#required' => 1,
+  );
+
+  $form['price'] = array(
+    '#title' => t('Price'),
+    '#type' => 'textfield',
+    '#description' => t('Price with subunits, without delimiter ex. 1250 for (12.50)'),
+    '#required' => 1,
+  );
+
+  $form['date_from'] = array(
+    '#title' => t('From'),
+    '#type' => 'textfield',
+    '#required' => 1,
+  );
+  
+  $form['date_to'] = array(
+    '#title' => t('To'),
+    '#type' => 'textfield',
+    '#required' => 1,
+  );
+
+  $form['stock'] = array(
+    '#title' => t('Stock'),
+    '#type' => 'textfield',
+    '#element_validate' => array('element_validate_integer_positive'), 
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Create'),
+  );
+  return $form;
+}
+
+function _commerce_mauser_add_product_form_validate($node, &$form) {
+}
+
+function _commerce_mauser_add_product_form_submit($form, $form_state){
+  global $user;
+
+  $dates = _commerce_mauser_get_dates_between($form_state['values']['date_from'], $form_state['values']['date_to']);
+
+  foreach($dates as $date) {
+    $sku = $form_state['values']['title'] . '_' . $date;
+    $mauser_id = 'mauser_' . $form_state['values']['title'];
+
+    // Create new product entity
+    $new_product = commerce_product_new('repeated_product');
+
+    // Populate fields
+    $new_product->sku = $sku;
+    $new_product->title = $form_state['values']['title'];
+    $new_product->uid = $user->uid;
+    $new_product->status = '1';
+
+    $price = array(
+      'amount' => $form_state['values']['price'],
+      'currency_code' => commerce_default_currency(),
+    );
+
+    $new_product->commerce_price[LANGUAGE_NONE][0] = $price;
+
+    $new_product->field_mauser_id[LANGUAGE_NONE][0]['value'] = $mauser_id;
+
+    $new_product->field_offer_dato[LANGUAGE_NONE][0]['value'] = $date . ' 12:00:00';
+
+    $new_product->commerce_stock[LANGUAGE_NONE][0]['value'] = $form_state['values']['stock'];
+
+    commerce_product_save($new_product);
+  }
+
+  drupal_set_message(t('Repeated product created: %title', array('%title' => $form_state['values']['title'])));
+}
+
+/**
+ * Worker function, retrieves list of all repeated product
+ * entities.
+ *
+ * @param
+ *  array - mauser ids
+ * @return
+ *  array - product ids, formattetd for use on node
+ */
+function _commerce_mauser_get_repeated_product_list($mauser_ids) {
+  $product_ids = array();
+
+  // Iterate over supplied mauser_ids
+  foreach($mauser_ids as $mauser_id) { 
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'commerce_product')
+      ->entityCondition('bundle', 'repeated_product')
+      ->fieldCondition('field_mauser_id', 'value', $mauser_id, '=');
+
+    $result = $query->execute();
+
+    foreach($result['commerce_product'] as $key => $value) {
+      // And save the product ids to array
+      $product_ids[] = array('product_id' => $key);
+    } 
+  }
+
+  return $product_ids;
+}
+
+/**
+ * worker function, retrieves list of repeated products, not
+ * entities
+ */
+function _commerce_mauser_get_mauser_ids() {
+  $repeated_products = array();
+
+  $mauser_id_sql = 
+    'SELECT DISTINCT (
+    field_mauser_id_value
+    )
+    FROM `field_data_field_mauser_id`
+    WHERE 1';
+
+  $result = db_query($mauser_id_sql);
+
+  foreach ($result as $record) {
+    $data = explode('_', $record->field_mauser_id_value);
+
+    $repeated_products[$record->field_mauser_id_value] = $data[1];
+  }
+  return $repeated_products;
+}
+
+function _commerce_mauser_get_product_user($mauser_id) {
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'commerce_product')
+    ->entityCondition('bundle', 'repeated_product')
+    ->fieldCondition('field_mauser_id', 'value', $mauser_id, '=');
+
+    $result = $query->execute();
+
+    $product_id = key($result['commerce_product']);
+
+    $product = commerce_product_load($product_id);
+
+    return $product->uid;
+}
+
+function _commerce_mauser_get_dates_between($from, $to) {
+  $format = 'Y-m-d';
+  $dates = array();
+
+  $current = strtotime($from);
+  $last = strtotime($to);
+
+  while($current <= $last) {
+    $dates[] = date($format, $current);
+    $current = strtotime('+1day', $current);
+  }
+  
+  return $dates;
+}

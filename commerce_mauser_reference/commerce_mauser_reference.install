@@ -1,0 +1,30 @@
+<?php
+
+/**
+ * Implements hook_field_schema().
+ */
+function commerce_mauser_reference_field_schema($field) {
+  if ($field['type'] == 'commerce_mauser_reference') {
+    return array(
+      'columns' => array(
+        'mauser_id' => array(
+          'type' => 'varchar',
+          'length' => '128',
+          'not null' => FALSE,
+        ),
+      ),
+      'indexes' => array(
+        'mauser_id' => array('mauser_id'),
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function commerce_mauser_reference_uninstall() {
+  // Delete any product reference fields.
+  module_load_include('module', 'commerce');
+  commerce_delete_fields('commerce_mauser_reference');
+}

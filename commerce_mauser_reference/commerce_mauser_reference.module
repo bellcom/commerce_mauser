@@ -1,0 +1,166 @@
+<?php
+
+/**
+ * Adds posibility to refer mauser products to nodes
+ *
+ * @todo
+ *  - clean up!
+ *
+ * @file
+ *
+ */
+
+/**
+ * Implements hook_field_info().
+ */
+function commerce_mauser_reference_field_info() {
+  return array(
+    'commerce_mauser_reference' => array(
+      'label' => t('Mauser Reference'),
+      'description' => t('This field stores the ID of a related product as an integer value.'),
+      'settings' => array('options_list_limit' => NULL),
+      'default_widget' => 'options_buttons',
+      'default_formatter' => 'commece_mauser_reference',
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_settings_form().
+ */
+function commerce_mauser_reference_field_settings_form($field, $instance, $has_data) {
+  $settings = $field['settings'];
+  $form = array();
+
+  if ($field['type'] == 'commerce_mauser_reference') {
+    $options = array();
+  }
+
+  return $form;
+}
+
+/**
+ * Implements hook_field_instance_settings_form().
+ */
+function commerce_mauser_reference_field_instance_settings_form($field, $instance) {
+  $settings = $instance['settings'];
+  $form = array();
+
+
+
+  return $form;
+}
+
+/**
+ * Implements hook_field_validate().
+ *
+ * Possible error codes:
+ * - 'invalid_product_id': product_id is not valid for the field (not a valid
+ *                         product id, or the product is not referenceable).
+ */
+function commerce_mauser_reference_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
+  // Extract product_ids to check.
+  $product_ids = array();
+
+  // First check non-numeric product_id's to avoid losing time with them.
+  foreach ($items as $delta => $item) {
+    if (is_array($item) && !empty($item['product_id'])) {
+      if (is_numeric($item['product_id'])) {
+        $product_ids[] = $item['product_id'];
+      }
+      else {
+        $errors[$field['field_name']][$langcode][$delta][] = array(
+          'error' => 'invalid_product_id',
+          'message' => t('%name: you have specified an invalid product for this reference field.', array('%name' => $instance['label'])),
+        );
+      }
+    }
+  }
+
+  // Prevent performance hog if there are no ids to check.
+  if ($product_ids) {
+    $refs = commerce_product_match_products($field, $instance, '', NULL, $product_ids);
+
+    foreach ($items as $delta => $item) {
+      if (is_array($item)) {
+        if (!empty($item['product_id']) && !isset($refs[$item['product_id']])) {
+          $errors[$field['field_name']][$langcode][$delta][] = array(
+            'error' => 'invalid_product_id',
+            'message' => t('%name: you have specified an invalid product for this reference field.', array('%name' => $instance['label'])),
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function commerce_mauser_reference_field_is_empty($item, $field) {
+  // product_id = 0 is empty too, which is exactly what we want.
+  return empty($item['mauser_id']);
+}
+
+/**
+ * Implements hook_field_widget_info().
+ *
+ * Defines widgets available for use with field types as specified in each
+ * widget's $info['field types'] array.
+ */
+function commerce_mauser_reference_field_widget_info() {
+  $widgets = array();
+
+  // Define an autocomplete textfield widget for product referencing that works
+  // like the Term Reference autocomplete widget.
+  $widgets['commerce_product_reference_autocomplete'] = array(
+    'label' => t('Mauser product reference'),
+    'description' => t('Display the list of referenceable products.'),
+    'field types' => array('commerce_mauser_reference'),
+  );
+  return $widgets;
+}
+
+/**
+ * Implements hook_field_widget_info_alter().
+ */
+function commerce_mauser_reference_field_widget_info_alter(&$info) {
+  $info['options_buttons']['field types'][] = 'commerce_mauser_reference';
+}
+
+/**
+ * Implements hook_field_widget_error().
+ */
+function commerce_mauser_reference_field_widget_error($element, $error) {
+  form_error($element, $error['message']);
+}
+
+/**
+ * Implements hook_options_list().
+ */
+function commerce_mauser_reference_options_list($field, $instance = NULL) {
+  $options = array();
+
+  // Look for an options list limit in the field settings.
+  if (!empty($field['settings']['options_list_limit'])) {
+    $limit = (int) $field['settings']['options_list_limit'];
+  }
+  else {
+    $limit = NULL;
+  }
+
+  // populate options
+  $mauser_ids = _commerce_mauser_get_mauser_ids();
+
+  foreach ($mauser_ids as $mauser_id => $mauser_title) {
+    $options['mauser_id'][$mauser_id] = $mauser_title;
+  }
+
+
+  // Simplify the options list if only one optgroup exists.
+  if (count($options) == 1) {
+    $options = reset($options);
+  }
+
+  return $options;
+}

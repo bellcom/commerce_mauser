@@ -1,0 +1,9 @@
+name = Commerce Mauser
+description = Create a product that repeats itself a specified number of times
+core = 7.x
+; Examples - use at will
+;package = Views
+;dependencies[] = views
+;dependencies[] = panels
+;files[] = example.test
+;configure = admin/config/content/example

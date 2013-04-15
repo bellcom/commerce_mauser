@@ -1,5 +1,0 @@
-<?php
-
-$product = node_load(107);
-
-print print_r($product, 1);

@@ -39,11 +39,13 @@ function commerce_mauser_menu(){
     'access arguments' => array('create', commerce_product_new($type)),
   );
 
-  $items['commerce_mauser/mauser_id'] = array(
-      'title' => t('View the form'),
-      'callback' => 'commerce_mauser_get_mauser_id_form',
-      'access arguments' => TRUE
-    );
+  $items['admin/commerce/products/edit_repeater/%'] = array(
+    'title' => t('Edit repeated products'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('_commerce_mauser_edit_repeater_form', 4),
+    'access callback' => 'commerce_product_access',
+    'access arguments' => array('create', commerce_product_new($type)),
+  );
 
   return $items;
 }
@@ -62,7 +64,7 @@ function commerce_mauser_manage_repeater_view(){
         continue;
       }
     }
-    $rows[] = array($value, '<a href="delete_repeater/'.$key.'">'.t('Delete').'</a>');
+    $rows[] = array($value, '<a href="delete_repeater/'.$key.'">'.t('Delete').'</a> - <a href="edit_repeater/'.$key.'">'.t('Edit').'</a>');
 
   }
   return theme('table', array('header' => $header, 'rows' => $rows)) . '<a href="/admin/commerce/products/add_repeater">' . t('Create new repeated product') . '</a>';
@@ -92,7 +94,7 @@ function commerce_mauser_delete_repeater_confirm_submit($form, &$form_state){
 
     drupal_set_message(t('%title has been deleted', array('%title' => $form_state['values']['mauser_id'])));
 
-    $form_state['redirect'] = '/offer-publisher';  
+    $form_state['redirect'] = 'offer-publisher';  
   }
 }
 
@@ -121,6 +123,9 @@ function commerce_mauser_field_attach_submit($entity_type, $entity, $form, &$for
     }
   }
 }
+
+
+
 
 /**
  * form for adding repeated product
@@ -171,6 +176,52 @@ function _commerce_mauser_add_product_form($form, &$form_state){
   return $form;
 }
 
+function _commerce_mauser_edit_repeater_form($form, &$form_state, $mauser_id) {
+
+  $product_id = reset(_commerce_mauser_get_repeated_product_list(array($mauser_id)));
+
+  $product = commerce_product_load($product_id['product_id']);
+
+  $form['mauser_id'] = array(
+    '#value' => $mauser_id,
+    '#type' => 'hidden',
+  );
+
+  $form['title'] = array(
+    '#title' => t('Product title'),
+    '#type' => 'textfield',
+    '#description' => t('ex. "Hindsgavl"'),
+    '#default_value' => $product->title,
+    '#required' => 1,
+  );
+
+  $form['price'] = array(
+    '#title' => t('Price'),
+    '#type' => 'textfield',
+    '#description' => t('Price with subunits, without delimiter ex. 1250 for (12.50)'),
+    '#default_value' => $product->commerce_price[LANGUAGE_NONE][0]['amount'],
+    '#required' => 1,
+  );
+
+  $form['update_stock'] = array(
+    '#title' => t('Update stock'),
+    '#type' => 'checkbox',
+  );
+
+  $form['stock'] = array(
+    '#title' => t('Stock'),
+    '#type' => 'textfield',
+    '#element_validate' => array('element_validate_integer_positive'), 
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Update'),
+  );
+
+  return $form;
+}
+
 function _commerce_mauser_add_product_form_validate($node, &$form) {
 }
 
@@ -209,6 +260,37 @@ function _commerce_mauser_add_product_form_submit($form, $form_state){
   }
 
   drupal_set_message(t('Repeated product created: %title', array('%title' => $form_state['values']['title'])));
+}
+
+function _commerce_mauser_edit_repeater_form_submit($form, $form_state) {
+
+  $product_ids = _commerce_mauser_get_repeated_product_list(array($form_state['values']['mauser_id']));
+
+  $mauser_id = 'mauser_' . $form_state['values']['title'];
+  
+  foreach($product_ids as $product_id) {
+
+    $product = commerce_product_load($product_id['product_id']);
+
+    $product->title = $form_state['values']['title'];
+    
+    $product->field_mauser_id[LANGUAGE_NONE][0]['value'] = $mauser_id;
+
+    $price = array(
+      'amount' => $form_state['values']['price'],
+      'currency_code' => commerce_default_currency(),
+    );
+
+    $product->commerce_price[LANGUAGE_NONE][0] = $price;
+
+    if($form_state['values']['update_stock'] === 1) {
+      $product->commerce_stock[LANGUAGE_NONE][0]['value'] = $form_state['values']['stock'];
+    } 
+
+    commerce_product_save($product);
+  }
+  drupal_set_message(t('Repeated product updated: %title', array('%title' => $form_state['values']['title'])));
+  $form_state['redirect'] = 'offer-publisher';  
 }
 
 /**

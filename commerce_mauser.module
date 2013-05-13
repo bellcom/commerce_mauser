@@ -59,13 +59,11 @@ function commerce_mauser_manage_repeater_view(){
 
   foreach($mauser_ids as $key => $value) {
     $mauser_uid = _commerce_mauser_get_product_user($key);
-    if((int)$user->uid !== 1 || !in_array('Offer admin', $user->roles)){
-      if($mauser_uid !== $user->uid){
-        continue;
-      }
-    }
-    $rows[] = array($value, '<a href="delete_repeater/'.$key.'">'.t('Delete').'</a> - <a href="edit_repeater/'.$key.'">'.t('Edit').'</a>');
 
+    if((int)$user->uid === 1 || in_array('Offer admin', $user->roles)){
+      $rows[] = array($value, '<a href="delete_repeater/'.$key.'">'.t('Delete').'</a> - <a href="edit_repeater/'.$key.'">'.t('Edit').'</a>');
+
+    }
   }
   return theme('table', array('header' => $header, 'rows' => $rows)) . '<a href="/admin/commerce/products/add_repeater">' . t('Create new repeated product') . '</a>';
 }

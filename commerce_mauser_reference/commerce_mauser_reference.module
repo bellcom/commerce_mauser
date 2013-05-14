@@ -152,8 +152,10 @@ function commerce_mauser_reference_options_list($field, $instance = NULL) {
   // populate options
   $mauser_ids = _commerce_mauser_get_mauser_ids();
 
-  foreach ($mauser_ids as $mauser_id => $mauser_title) {
-    $options['mauser_id'][$mauser_id] = $mauser_title;
+  foreach ($mauser_ids as $key => $value ) {
+
+    $mauser_title = _commerce_mauser_get_product_info('title', $key );
+    $options['mauser_id'][$key] = $mauser_title;
   }
 
 

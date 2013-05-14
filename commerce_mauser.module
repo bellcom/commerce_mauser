@@ -58,10 +58,11 @@ function commerce_mauser_manage_repeater_view(){
   $rows = array();
 
   foreach($mauser_ids as $key => $value) {
-    $mauser_uid = _commerce_mauser_get_product_user($key);
+    $mauser_uid = _commerce_mauser_get_product_info('uid', $key);
+    $mauser_title = _commerce_mauser_get_product_info('title', $key);
 
     if((int)$user->uid === 1 || in_array('Offer admin', $user->roles)){
-      $rows[] = array($value, '<a href="delete_repeater/'.$key.'">'.t('Delete').'</a> - <a href="edit_repeater/'.$key.'">'.t('Edit').'</a>');
+      $rows[] = array($mauser_title, '<a href="delete_repeater/'.$key.'">'.t('Delete').'</a> - <a href="edit_repeater/'.$key.'">'.t('Edit').'</a>');
 
     }
   }
@@ -229,8 +230,13 @@ function _commerce_mauser_add_product_form_submit($form, $form_state){
   $dates = _commerce_mauser_get_dates_between($form_state['values']['date_from'], $form_state['values']['date_to']);
 
   foreach($dates as $date) {
-    $sku = $form_state['values']['title'] . '_' . $date;
-    $mauser_id = 'mauser_' . $form_state['values']['title'];
+	$title = strtolower(trim($form_state['values']['title']));
+	$title = preg_replace('/[^a-z0-9-]/', '-', $title);
+	$title = preg_replace('/-+/', "-", $title);
+
+    $mauser_id = 'mauser_' . $title;
+    
+    $sku = $title . '_' . $date;
 
     // Create new product entity
     $new_product = commerce_product_new('repeated_product');
@@ -264,8 +270,12 @@ function _commerce_mauser_edit_repeater_form_submit($form, $form_state) {
 
   $product_ids = _commerce_mauser_get_repeated_product_list(array($form_state['values']['mauser_id']));
 
-  $mauser_id = 'mauser_' . $form_state['values']['title'];
-  
+  $title = strtolower(trim($form_state['values']['title']));
+  $title = preg_replace('/[^a-z0-9-]/', '-', $title);
+  $title = preg_replace('/-+/', "-", $title);
+
+  $mauser_id = 'mauser_' . $title;
+
   foreach($product_ids as $product_id) {
 
     $product = commerce_product_load($product_id['product_id']);
@@ -345,7 +355,7 @@ function _commerce_mauser_get_mauser_ids() {
   return $repeated_products;
 }
 
-function _commerce_mauser_get_product_user($mauser_id) {
+function _commerce_mauser_get_product_info($param, $mauser_id) {
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'commerce_product')
     ->entityCondition('bundle', 'repeated_product')
@@ -357,7 +367,7 @@ function _commerce_mauser_get_product_user($mauser_id) {
 
     $product = commerce_product_load($product_id);
 
-    return $product->uid;
+    return $product->$param;
 }
 
 function _commerce_mauser_get_dates_between($from, $to) {

@@ -143,6 +143,7 @@ function _commerce_mauser_add_product_form($form, &$form_state){
   $form['price'] = array(
     '#title' => t('Price'),
     '#type' => 'textfield',
+    '#element_validate' => array('element_validate_integer_positive'),
     '#description' => t('Price with subunits, without delimiter ex. 1250 for (12.50)'),
     '#required' => 1,
   );
@@ -159,10 +160,19 @@ function _commerce_mauser_add_product_form($form, &$form_state){
     '#required' => 1,
   );
 
+  $form['expire'] = array(
+    '#title' => t('Udløb'),
+    '#type' => 'textfield',
+    '#element_validate' => array('element_validate_integer_positive'),
+    '#description' => t('Enter number of hours before midnight the product should expire.'),
+    '#required' => 1,
+  );
+
   $form['stock'] = array(
     '#title' => t('Stock'),
     '#type' => 'textfield',
     '#element_validate' => array('element_validate_integer_positive'), 
+    '#required' => 1,
   );
 
   $form['submit'] = array(
@@ -199,6 +209,14 @@ function _commerce_mauser_edit_repeater_form($form, &$form_state, $mauser_id) {
     '#required' => 1,
   );
 
+  $form['expire'] = array(
+    '#title' => t('Udløb'),
+    '#type' => 'textfield',
+    '#element_validate' => array('element_validate_integer_positive'),
+    '#description' => t('Enter number of hours before midnight the product should expire.'),
+    '#required' => 1,
+  );
+
   $form['update_stock'] = array(
     '#title' => t('Update stock'),
     '#type' => 'checkbox',
@@ -217,9 +235,6 @@ function _commerce_mauser_edit_repeater_form($form, &$form_state, $mauser_id) {
 
   return $form;
 }
-
-//function _commerce_mauser_add_product_form_validate($node, &$form) {
-//}
 
 function _commerce_mauser_add_product_form_submit($form, $form_state){
   global $user;
@@ -253,7 +268,12 @@ function _commerce_mauser_add_product_form_submit($form, $form_state){
 
     $new_product->field_mauser_id[LANGUAGE_NONE][0]['value'] = $mauser_id;
 
+    $expire = strtotime($date . '23:59:00') - ($form_state['values']['expire'] * 3600 );
+    $expire_date = date('Y-m-d H:i:s', $expire);
+
     $new_product->field_offer_dato[LANGUAGE_NONE][0]['value'] = $date . ' 12:00:00';
+
+    $new_product->field_dato_og_tidspunkt_for_sids[LANGUAGE_NONE][0]['value'] = $expire_date;
 
     $new_product->commerce_stock[LANGUAGE_NONE][0]['value'] = $form_state['values']['stock'];
 
@@ -267,26 +287,29 @@ function _commerce_mauser_edit_repeater_form_submit($form, $form_state) {
 
   $product_ids = _commerce_mauser_get_repeated_product_list(array($form_state['values']['mauser_id']));
 
-  //$title = strtolower(trim($form_state['values']['title']));
-  //$title = preg_replace('/[^a-z0-9-]/', '-', $title);
-  //$title = preg_replace('/-+/', "-", $title);
-
-  //$mauser_id = 'mauser_' . $title;
-
   foreach($product_ids as $product_id) {
 
     $product = commerce_product_load($product_id['product_id']);
 
     $product->title = $form_state['values']['title'];
     
-    //$product->field_mauser_id[LANGUAGE_NONE][0]['value'] = $mauser_id;
-
     $price = array(
       'amount' => $form_state['values']['price'],
       'currency_code' => commerce_default_currency(),
     );
 
     $product->commerce_price[LANGUAGE_NONE][0] = $price;
+
+    // Create expire datetime
+    $exp_array = explode(' ', $product->field_offer_dato[LANGUAGE_NONE][0]['value']);
+    $time_array = explode(':', $exp_array[1]);
+    $date_array = explode('-', $exp_array[0]);
+
+    $expire = mktime((24 - $form_state['values']['expire']), 0, 0, $date_array[1], $date_array[2], $date_array[0]);
+
+    $expire_date = gmdate('Y-m-d H:i:s', $expire);
+
+    $product->field_dato_og_tidspunkt_for_sids[LANGUAGE_NONE][0]['value'] = $expire_date;
 
     if($form_state['values']['update_stock'] === 1) {
       $product->commerce_stock[LANGUAGE_NONE][0]['value'] = $form_state['values']['stock'];

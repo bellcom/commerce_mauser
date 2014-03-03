@@ -16,5 +16,6 @@ features[commerce_product_type][] = repeated_product
 features[features_api][] = api:1
 features[field][] = commerce_product-repeated_product-commerce_price
 features[field][] = commerce_product-repeated_product-commerce_stock
+features[field][] = commerce_product-repeated_product-field_dato_og_tidspunkt_for_sids
 features[field][] = commerce_product-repeated_product-field_mauser_id
 features[field][] = commerce_product-repeated_product-field_offer_dato

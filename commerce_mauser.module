@@ -175,6 +175,12 @@ function _commerce_mauser_add_product_form($form, &$form_state){
     '#required' => 1,
   );
 
+  $form['seller_email'] = array(
+    '#title' => t('Aktør email'),
+    '#type' => 'textfield',
+    '#element_validate' => array('commerce_mauser_valid_email_address'), 
+  );
+
   $form['submit'] = array(
     '#type' => 'submit', 
     '#value' => t('Create'),
@@ -228,12 +234,29 @@ function _commerce_mauser_edit_repeater_form($form, &$form_state, $mauser_id) {
     '#element_validate' => array('element_validate_integer_positive'), 
   );
 
+  $form['seller_email'] = array(
+    '#title' => t('Aktør email'),
+    '#type' => 'textfield',
+    '#default_value' => $product->field_seller_email[LANGUAGE_NONE][0]['email'],
+    '#element_validate' => array('commerce_mauser_valid_email_address'), 
+  );
+
   $form['submit'] = array(
     '#type' => 'submit', 
     '#value' => t('Update'),
   );
 
   return $form;
+}
+
+function commerce_mauser_valid_email_address($element, &$form_state, $form) {
+  $value = $element['#value'];
+  if(!$value){
+    return;
+  }
+  if (!valid_email_address($value)) {
+    form_error($element, t('Please enter a valid email address.'));
+  }
 }
 
 function _commerce_mauser_add_product_form_submit($form, $form_state){
@@ -275,6 +298,7 @@ function _commerce_mauser_add_product_form_submit($form, $form_state){
 
     $new_product->field_dato_og_tidspunkt_for_sids[LANGUAGE_NONE][0]['value'] = $expire_date;
 
+    $new_product->field_seller_email[LANGUAGE_NONE][0]['email'] = $form_state['values']['seller_email'];
     $new_product->commerce_stock[LANGUAGE_NONE][0]['value'] = $form_state['values']['stock'];
 
     commerce_product_save($new_product);
@@ -314,6 +338,8 @@ function _commerce_mauser_edit_repeater_form_submit($form, $form_state) {
     if($form_state['values']['update_stock'] === 1) {
       $product->commerce_stock[LANGUAGE_NONE][0]['value'] = $form_state['values']['stock'];
     } 
+    
+    $product->field_seller_email[LANGUAGE_NONE][0]['email'] = $form_state['values']['seller_email'];
 
     commerce_product_save($product);
   }

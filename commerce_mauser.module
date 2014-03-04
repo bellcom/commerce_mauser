@@ -305,7 +305,7 @@ function _commerce_mauser_edit_repeater_form_submit($form, $form_state) {
     $time_array = explode(':', $exp_array[1]);
     $date_array = explode('-', $exp_array[0]);
 
-    $expire = mktime((24 - $form_state['values']['expire']), 0, 0, $date_array[1], $date_array[2], $date_array[0]);
+    $expire = mktime(24, 0, 0, $date_array[1], $date_array[2], $date_array[0]) - ($form_state['values']['expire'] * 3600);
 
     $expire_date = gmdate('Y-m-d H:i:s', $expire);
 
